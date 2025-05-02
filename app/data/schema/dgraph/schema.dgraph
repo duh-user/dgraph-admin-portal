@@ -1,0 +1,37 @@
+#
+# Dgraph QL Schema Declerations
+#
+user_name: string @index(trigram) @upsert .
+name: string @index(trigram) @upsert .
+role_name: string @index(exact) .
+pass_hash: string .
+email: string @index(trigram) @upsert .
+role: [uid] .
+date_created: datetime @index(hour) .
+last_seen: datetime @index(hour) .
+last_modified: datetime @index(hour) .
+
+#
+# User schema
+#
+type User {
+    name
+    user_name
+    pass_hash
+    email
+    role
+    date_created
+    last_seen
+    last_modified
+}
+
+#
+# Role schema
+#
+type Role {
+    role_name
+    date_created
+    last_seen
+    last_modified
+}
+
