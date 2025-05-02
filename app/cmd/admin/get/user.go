@@ -61,7 +61,7 @@ func getUserByEmail(log *log.Logger, cfg *config.Config) error {
 
 	traceID := uuid.New().String()
 	log.Printf("looking for users matching %s", usr.Email)
-	usrs, err := s.GetUsersByEmail(ctx, traceID, usr.Email)
+	usrs, err := s.GetUsersByEmail(ctx, traceID, usr.Email, false)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func getUsersByUsername(log *log.Logger, cfg *config.Config) error {
 	s := user.NewStore(log, dgc.Client)
 
 	traceID := uuid.New().String()
-	usrs, err := s.GetUsersByUsername(ctx, traceID, usr.UserName)
+	usrs, err := s.GetUsersByUsername(ctx, traceID, usr.UserName, false)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func getUserByName(log *log.Logger, cfg *config.Config) error {
 	s := user.NewStore(log, dgc.Client)
 
 	traceID := uuid.New().String()
-	usrs, err := s.GetUsersByName(ctx, traceID, usr.Name)
+	usrs, err := s.GetUsersByName(ctx, traceID, usr.Name, false)
 	if err != nil {
 		return err
 	}

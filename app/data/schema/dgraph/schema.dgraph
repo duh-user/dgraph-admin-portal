@@ -1,11 +1,11 @@
 #
 # Dgraph QL Schema Declerations
 #
-user_name: string @index(trigram) @upsert .
-name: string @index(trigram) @upsert .
+user_name: string @index(trigram, exact) @upsert .
+name: string @index(trigram, exact) @upsert .
 role_name: string @index(exact) .
 pass_hash: string .
-email: string @index(trigram) @upsert .
+email: string @index(trigram, exact) @upsert .
 role: [uid] .
 date_created: datetime @index(hour) .
 last_seen: datetime @index(hour) .

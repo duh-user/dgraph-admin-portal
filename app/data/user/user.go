@@ -24,6 +24,8 @@ var (
 	ErrPassNotMatch = errors.New("passwords do not match")
 )
 
+var query string
+
 // Store will manage the user store API's
 type Store struct {
 	log *log.Logger
@@ -42,21 +44,26 @@ func NewStore(log *log.Logger, dgo *dgo.Dgraph) *Store {
 // if the user existss the found user is returned
 // if added the user with uid is returned
 func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now time.Time) (User, error) {
-	rs := role.NewStore(s.log, s.dgo)
-	if usrs, err := s.GetUsersByEmail(ctx, traceID, newUser.Email); err != nil {
+	if usrs, err := s.GetUsersByEmail(ctx, traceID, newUser.Email, true); err == nil && len(usrs) > 0 {
 		for _, usr := range usrs {
 			if usr.Email == newUser.Email {
+				s.log.Printf("%s - user with email %s already exists (UID: %s)", traceID, newUser.Email, usr.UID)
 				return usr, ErrExists
 			}
 		}
+	} else if err != nil && !errors.Is(err, ErrNotFound) {
+		return User{}, fmt.Errorf("%s - failed to check email in db - %w", traceID, err)
 	}
 
-	if usrs, err := s.GetUsersByUsername(ctx, traceID, newUser.UserName); err == nil {
+	if usrs, err := s.GetUsersByUsername(ctx, traceID, newUser.UserName, true); err == nil && len(usrs) > 0 {
 		for _, usr := range usrs {
 			if usr.UserName == newUser.UserName {
+				s.log.Printf("%s - user with username %s already exists (UID: %s)", traceID, newUser.UserName, usr.UID)
 				return usr, ErrExists
 			}
 		}
+	} else if err != nil && !errors.Is(err, ErrNotFound) {
+		return User{}, fmt.Errorf("%s - failed to check username in db - %w", traceID, err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(newUser.Pass), bcrypt.DefaultCost)
@@ -64,17 +71,21 @@ func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now t
 		return User{}, fmt.Errorf("%s : error hashing pass - %v", traceID, err)
 	}
 
-	newUsersRoles := role.Role{
-		Name: newUser.Role,
-	}
+	rs := role.NewStore(s.log, s.dgo)
+	gotRole, err := rs.GetRoleByName(ctx, traceID, newUser.Role)
+	if err != nil {
+		if errors.Is(err, role.ErrNotFound) {
+			return User{}, fmt.Errorf("%s : role %s not found %w", traceID, newUser.Role, err)
+		}
+		return User{}, fmt.Errorf("%s : error getting role %s - %w", traceID, newUser.Role, err)
 
-	roles := []role.Role{newUsersRoles}
+	}
 
 	user := User{
 		UserName:     newUser.UserName,
 		Name:         newUser.Name,
 		Email:        newUser.Email,
-		Role:         roles,
+		Role:         []role.Role{gotRole},
 		PassHash:     string(passHash),
 		DateCreated:  now,
 		LastSeen:     now,
@@ -91,28 +102,17 @@ func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now t
 }
 
 // GetUserByName return user found by provided name
-func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string) ([]User, error) {
+func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string, exact bool) ([]User, error) {
 	vars := make(map[string]string)
 	vars["$name"] = name
-	q := `
-			query query($name: string){
-				query(func: match(name, $name, 25))	{
-					uid
-					name
-					user_name
-					email
-					role {
-						role_name
-					}
-					pass_hash
-					date_created
-					last_modified
-					last_seen
-				}	
-			}	
-		`
 
-	usrs, err := s.query(ctx, traceID, q, vars)
+	if exact {
+		query = QBYNAMEEXACT
+	} else {
+		query = QBYNAMEFUZZY
+	}
+
+	usrs, err := s.query(ctx, traceID, query, vars)
 	if err != nil {
 		return []User{}, err
 	}
@@ -121,28 +121,17 @@ func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string)
 }
 
 // GetUserByUsername return user found by provided username
-func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username string) ([]User, error) {
+func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username string, exact bool) ([]User, error) {
 	vars := make(map[string]string)
 	vars["$user_name"] = username
-	q := `
-			query query($user_name: string){
-				query(func: match(user_name, $user_name, 10))	{
-					uid
-					name
-					user_name
-					email
-					role {
-						role_name
-					}
-					pass_hash
-					date_created
-					last_modified
-					last_seen
-				}	
-			}	
-		`
 
-	usrs, err := s.query(ctx, traceID, q, vars)
+	if exact {
+		query = QBYUNAMEEXACT
+	} else {
+		query = QBYUNAMEFUZZY
+	}
+
+	usrs, err := s.query(ctx, traceID, query, vars)
 	if err != nil {
 		return []User{}, err
 	}
@@ -151,29 +140,17 @@ func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username
 }
 
 // GetUserByEmail returns user found by provided email
-func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email string) ([]User, error) {
+func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email string, exact bool) ([]User, error) {
 	vars := make(map[string]string)
 	vars["$email"] = email
-	// all queries need to start with the name "query" to work with our query handler
-	q := `
-			query query($email: string){
-				query(func: match(email, $email, 25))	{
-					uid
-					name
-					user_name
-					email
-					role {
-						role_name
-					}
-					pass_hash
-					date_created
-					last_modified
-					last_seen
-				}	
-			}	
-		`
 
-	usrs, err := s.query(ctx, traceID, q, vars)
+	if exact {
+		query = QBYEMAILEXACT
+	} else {
+		query = QBYEMAILFUZZY
+	}
+
+	usrs, err := s.query(ctx, traceID, query, vars)
 	for _, usr := range usrs {
 		fmt.Println(usr.Name)
 	}

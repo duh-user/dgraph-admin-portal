@@ -5,6 +5,7 @@ import (
 	"dgraph-client/config"
 	"dgraph-client/data"
 	"dgraph-client/data/user"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -16,38 +17,35 @@ import (
 var userCmd = &cobra.Command{
 	Use:   "user",
 	Short: "add a user to the database",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
 
 		usr, err := initFlags(cmd)
 		if err != nil {
-			log.Fatal("unable to init flags -", err)
+			return fmt.Errorf("unable to init flags - %w", err)
 		}
 
 		if err := addUser(log, cfg, usr); err != nil {
-			log.Fatal("unable to add user -", err)
+			return fmt.Errorf("unable to add user - %w", err)
 		}
+		return nil
 	},
 }
 
 func init() {
-	userCmd.PersistentFlags().String("name", "", "full name of the new user")
-	userCmd.PersistentFlags().String("username", "", "full name of the new user")
-	userCmd.PersistentFlags().String("email", "", "email address of the new user")
-	userCmd.PersistentFlags().String("password", "", "password of the new user")
-	userCmd.PersistentFlags().String("role", "user", "user role - default: user")
-	userCmd.MarkPersistentFlagRequired("name")
-	userCmd.MarkPersistentFlagRequired("email")
-	userCmd.MarkPersistentFlagRequired("password")
-	userCmd.MarkPersistentFlagRequired("username")
-	userCmd.MarkPersistentFlagRequired("role")
+	userCmd.Flags().String("name", "", "full name of the new user")
+	userCmd.Flags().String("username", "", "full name of the new user")
+	userCmd.Flags().String("email", "", "email address of the new user")
+	userCmd.Flags().String("password", "", "password of the new user")
+	userCmd.Flags().String("role", "user", "user role - default: user")
+	userCmd.MarkFlagRequired("name")
+	userCmd.MarkFlagRequired("email")
+	userCmd.MarkFlagRequired("password")
+	userCmd.MarkFlagRequired("username")
+	userCmd.MarkFlagRequired("role")
 }
 
 func addUser(log *log.Logger, cfg *config.Config, newUsr *user.NewUser) error {
-	if newUsr.Name == "" || newUsr.Email == "" || newUsr.Pass == "" || newUsr.Role == "" || newUsr.UserName == "" {
-		return Cmd.Usage()
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
