@@ -13,41 +13,76 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var usr user.User
-
 var userCmd = &cobra.Command{
 	Use:   "user",
 	Short: "get a user from the db",
 	Long:  `get a user from the db by name, email, username, or role`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
 
+		name, err := cmd.Flags().GetString("name")
+		if err != nil {
+			return fmt.Errorf("unable to get name flag - %v", err)
+		}
+
+		username, err := cmd.Flags().GetString("username")
+		if err != nil {
+			return fmt.Errorf("unable to get username flag - %v", err)
+		}
+
+		email, err := cmd.Flags().GetString("email")
+		if err != nil {
+			return fmt.Errorf("unable to get email flag - %v", err)
+		}
+
+		role, err := cmd.Flags().GetString("role")
+		if err != nil {
+			return fmt.Errorf("unable to get role flag - %v", err)
+		}
+
 		switch {
-		case usr.Email != "":
+		case email != "":
 			if err := getUserByEmail(log, cfg); err != nil {
-				log.Fatalf("unable get user %s - %v", usr.Email, err)
+				log.Fatalf("unable get user %s - %v", email, err)
 			}
-		case usr.UserName != "":
+		case username != "":
 			if err := getUsersByUsername(log, cfg); err != nil {
-				log.Fatalf("unable get user %s - %v", usr.UserName, err)
+				log.Fatalf("unable get user %s - %v", username, err)
 			}
-		case usr.Name != "":
+		case name != "":
 			if err := getUserByName(log, cfg); err != nil {
-				log.Fatalf("unable to get user %s - %v", usr.Name, err)
+				log.Fatalf("unable to get user %s - %w", name, err)
+			}
+		case role != "":
+			if err := getUserByUID(log, cfg); err != nil {
+				log.Fatalf("unable to get users with role %s - %w", role, err)
 			}
 		default:
-			fmt.Println("Please enter username, name, email or role")
+			fmt.Println("Error - please use flag --username, --name, --email or --role")
 			cmd.Help()
-			os.Exit(1)
+			return fmt.Errorf("no search criteria provided")
 		}
 
 	},
 }
 
 func init() {
-	userCmd.Flags().StringVar(&usr.Name, "name", "", "full name of the user")
-	userCmd.Flags().StringVar(&usr.UserName, "username", "", "username of the user")
-	userCmd.Flags().StringVar(&usr.Email, "email", "", "email address of the user")
+	userCmd.Flags().String("name", "", "full name of the user")
+	userCmd.Flags().String("username", "", "username of the user")
+	userCmd.Flags().String("email", "", "email address of the user")
+}
+
+func query(log *log.Logger, cfg *config.Config) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dgc, cncl := data.NewDGClient(cfg)
+	defer cncl()
+
+	s := user.NewStore(log, dgc.Client)
+
+	traceID := uuid.New().String()
+
 }
 
 func getUserByEmail(log *log.Logger, cfg *config.Config) error {

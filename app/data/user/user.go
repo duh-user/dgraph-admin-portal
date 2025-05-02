@@ -165,26 +165,12 @@ func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email strin
 func (s *Store) GetUserByUID(ctx context.Context, traceID string, uid string) (User, error) {
 	vars := make(map[string]string)
 	vars["$uid"] = uid
-	q := `
-		query query($uid: string){
-			query(func: eq(uid, $uid)) {
-				uid
-				name
-				user_name
-				email
-				role {
-					role_name
-				}
-				pass_hash
-				date_created
-				last_modified
-				last_seen	
-			}	
-		}	
-	`
+	query = QBYUID
 
-	usr, err := s.query(ctx, traceID, q, vars)
-	if err != nil {
+	usr, err := s.query(ctx, traceID, query, vars)
+	if err == nil && len(usr) < 1 {
+		return User{}, ErrNotFound
+	} else if err != nil {
 		return User{}, err
 	}
 
