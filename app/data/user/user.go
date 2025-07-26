@@ -177,6 +177,36 @@ func (s *Store) GetUserByUID(ctx context.Context, traceID string, uid string) (U
 	return usr[0], nil
 }
 
+// GetUserByRole return all users for a proided role
+func (s *Store) GetUsersByRole(ctx context.Context, traceID string, role string) ([]User, error) {
+	vars := make(map[string]string)
+	vars["$role"] = role
+	query = QBYROLE
+
+	usrs, err := s.query(ctx, traceID, query, vars)
+	if err == nil && len(usrs) < 1 {
+		return []User{}, ErrNotFound
+	} else if err != nil {
+		return []User{}, err
+	}
+
+	return usrs, nil
+}
+
+// GetAllUsers returns all users including admins
+func (s *Store) GetAllUsers(ctx context.Context, traceID string) ([]User, error) {
+	query = QALLUSERS
+
+	usrs, err := s.query(ctx, traceID, query, nil)
+	if err == nil && len(usrs) < 1 {
+		return []User{}, ErrNotFound
+	} else if err != nil {
+		return []User{}, err
+	}
+
+	return usrs, nil
+}
+
 // UpdateUser updates a user in the store
 func (s *Store) Update(ctx context.Context, traceID string, usr User) error {
 	if usr.UID == "" {

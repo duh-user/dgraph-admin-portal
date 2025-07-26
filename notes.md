@@ -6,6 +6,7 @@
 DGRAPH := dgraph/standalone:latest
 RATEL  := dgraph/ratel:latest
 
+
 # dev-docker: pull required docker images
 
 dev-docker:
@@ -21,6 +22,7 @@ dev-dgraph-local:
     docker run --name ratel-local \
         --platform linux/amd64 -d -p "8000:8000" $(RATEL)
 ```
+
 
 
 ## DGraph Query Syntax
@@ -92,105 +94,7 @@ A query block
         - alloftext - apply full-text search with stemming and stop words to find strings matching all of the text (bleve full-text search indexing)
             - `alloftext(predicate, "space-seperated text)"`
         - anyoftext - apply full-text search with stemming and stop words to find strings match any of the text
-            - `anyoftext(predicate, "space-seperated text")`
-- value attributes 
-    - equality
-        - eq - (int/float/bool/string/dateTime) - test equality of predicate or variable to a specified value or within a list of values
-            - `eq(predicate, value)`
-            - `eq(val(varName), value)` 
-            - `eq(predicate, val(varName))`
-            - `eq(count(predicate), value)`
-            - `eq(predicate, [val1, val2, ..., valN])`
-    - inequalities - (int/float/string/dateTime) - test for inequality of predicate or variable to a specified value
-        - le - less than or equal
-            - `le(predicate, value)`
-        - lt - less than
-            - `lt(val(varName), value)`
-        - ge - greater than or equal
-            - `ge(predicate, val(varName))`
-        - gt - greather than
-            - `gt(count(predicate), value)`
-    - range - (dateTime/int/float/exact string) - return nodes matching an inclusive range of indexed values (usefully for between dateTime) 
-        - `between(predicate, starteDateValue, endDateValue)`
-- find nodes with specific attributes
-    - by predicate
-        - has - determine if a node includes a specified predicate
-            - `has(prediate)`
-    - by uid
-        - uid - find nodes by a specified uid
-            - `uid(0x2)`
-        - uid_in - look ahead in along the edge and check if it lead to a particular UID
-            - `q(func: ...) @filter(uid_in(predicate, 0x2))`
-    - by type
-        - type - find node by a specified type
-            - `type()`
-- geolocation attributes
-    - near - check if geo location is within a given disatnce from a given point
-        - `near(predicate, [long, lat], disatnce)`
-    - within - check if geo location is within a given area from a given polygon specificed by geojson coordinate array
-        - `within(predicate, [[[long1, lat1], ..., [longN, latN]]])`
-    - contains - if a geo polygon specified by geojson coordinate array area contains a given location point or area
-        - `contains(predicate, [long, lat])`
-    - intersects - if a geo polygon specified by geojson coordinate array area intersects at the given geojson polygon
-        - `intersects(predicate, [[[long1, lat1,], ..., [longN, latN]]])`
-
-## Dgraph QL Mutation - CRUD Operations
-
-- dql accepts both json and RDF format
-
-### set Block
-
-- set - mutation function to add data  
-```
-{
-    "set": [
-        {
-            "name": "Jeremy Richard",
-            "age": 32,
-            "friends": {
-                "name": "Anna Lionhart",
-                "dgraph.type": "Person"
-            },
-        },
-        {
-            "name": "Stacey Blackfoot",
-            "age": 43,
-            "friends": {},
-        },
-        {
-            /** update value for variable of node with UID**/
-            <0x4321ae2> <age> 23 .
-        }
-    ]
-}
-```
-
-- delete - mutation to remove data from the store
-```
-{
-    delete {
-        <0xdfe23d> <died> "10-28-1984" .
-    }
-}
-```
-    - wildcard deletes can be used to delete multiple types of data for a predicate
-       ```
-       {
-            delete {
-                <0xd3de12> <friends> * .
-            }
-       }
-       ```
-        -  wildcard deletes can be used to delete all nodes or edges assocaited with a node
-           ```
-           {
-                delete {
-                    <0xd3de12> * * .
-                }
-           }
-           ```
-- upsert - locate a node and if found update or create new node with defined attributes
-    - will return a response with the state of the store before the mutation was executed -- will need to execute a new query to get updated details
+???LINES MISSING
     - the `@if` directive accepts a condition on a variable defined in the query block using `AND, OR, NOT` expressions
         - this is an optional conditional statement that will only be executed if the condition is met
 ```
@@ -275,3 +179,4 @@ JSON Response:
     }
 }
 ```
+
