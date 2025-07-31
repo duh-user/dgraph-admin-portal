@@ -4,11 +4,14 @@ import (
 	"context"
 	"dgraph-client/config"
 	"dgraph-client/data"
+	"dgraph-client/data/models"
 	"dgraph-client/data/user"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -146,6 +149,8 @@ func getUsersByUsername(log *log.Logger, cfg *config.Config, uname string) error
 		return err
 	}
 
+	displayUser(usrs)
+
 	for _, usr := range usrs {
 		log.Println("user found - ", usr.UID)
 	}
@@ -165,6 +170,10 @@ func getUserByName(log *log.Logger, cfg *config.Config, name string) error {
 	traceID := uuid.New().String()
 	usrs, err := s.GetUsersByName(ctx, traceID, name, false)
 	if err != nil {
+		return err
+	}
+
+	if err := displayUser(usrs); err != nil {
 		return err
 	}
 
@@ -245,6 +254,49 @@ func getAllUsers(log *log.Logger, cfg *config.Config) error {
 	for _, usr := range usrs {
 		fmt.Printf("\n-----\n\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
 	}
+
+	return nil
+}
+
+func displayUser(usrs []models.User) error {
+	if len(usrs) < 1 {
+		return fmt.Errorf("no users provided to display")
+	}
+
+	rows := [][]string{}
+
+	for _, usr := range usrs {
+		rows = append(rows, []string{usr.UID, usr.UserName, usr.Email, usr.LastSeen.String(), usr.LastModified.String()})
+	}
+
+	var (
+		purple    = lipgloss.Color("99")
+		gray      = lipgloss.Color("245")
+		lightGray = lipgloss.Color("241")
+
+		headerStyle  = lipgloss.NewStyle().Foreground(purple).Bold(true).Align(lipgloss.Center)
+		cellStyle    = lipgloss.NewStyle().Padding(0, 1).Width(14)
+		oddRowStyle  = cellStyle.Foreground(gray)
+		evenRowStyle = cellStyle.Foreground(lightGray)
+	)
+
+	t := table.New().
+		Border(lipgloss.NormalBorder()).
+		BorderStyle(lipgloss.NewStyle().Foreground(purple)).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			switch {
+			case row == table.HeaderRow:
+				return headerStyle
+			case row%2 == 0:
+				return evenRowStyle
+			default:
+				return oddRowStyle
+			}
+		}).
+		Headers("UID", "username", "email", "last_seen", "last_modified").
+		Rows(rows...)
+
+	fmt.Println(t)
 
 	return nil
 }
