@@ -68,6 +68,8 @@ const (
 	QBYROLE = `
 		query query($role: string) {
 			query(func: eq(role_name, $role)) {
+				uid
+				role_name
 				~role {
 					` + QFIELDSUSER + `
 				}

@@ -16,7 +16,7 @@ import (
 	"github.com/dgraph-io/dgo/v2/protos/api"
 )
 
-//go:embed dgraph/schema.dgraph
+//go:embed schema.dgraph
 var schemaDoc string
 
 // errors

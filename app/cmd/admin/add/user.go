@@ -4,6 +4,7 @@ import (
 	"context"
 	"dgraph-client/config"
 	"dgraph-client/data"
+	"dgraph-client/data/models"
 	"dgraph-client/data/user"
 	"fmt"
 	"log"
@@ -45,7 +46,7 @@ func init() {
 	userCmd.MarkFlagRequired("role")
 }
 
-func addUser(log *log.Logger, cfg *config.Config, newUsr *user.NewUser) error {
+func addUser(log *log.Logger, cfg *config.Config, newUsr *models.NewUser) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -65,8 +66,8 @@ func addUser(log *log.Logger, cfg *config.Config, newUsr *user.NewUser) error {
 	return nil
 }
 
-func initFlags(cmd *cobra.Command) (*user.NewUser, error) {
-	usr := user.NewUser{}
+func initFlags(cmd *cobra.Command) (*models.NewUser, error) {
+	usr := models.NewUser{}
 
 	name, err := cmd.Flags().GetString("name")
 	if err != nil {
@@ -93,7 +94,7 @@ func initFlags(cmd *cobra.Command) (*user.NewUser, error) {
 		return &usr, err
 	}
 
-	usr = user.NewUser{
+	usr = models.NewUser{
 		Name:     name,
 		UserName: username,
 		Email:    email,

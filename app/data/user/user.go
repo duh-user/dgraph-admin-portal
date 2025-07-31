@@ -4,6 +4,7 @@ package user
 
 import (
 	"context"
+	"dgraph-client/data/models"
 	"dgraph-client/data/role"
 	"encoding/json"
 	"errors"
@@ -43,7 +44,9 @@ func NewStore(log *log.Logger, dgo *dgo.Dgraph) *Store {
 // Add will add a new user to the db if the user doesn't already exist
 // if the user existss the found user is returned
 // if added the user with uid is returned
-func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now time.Time) (User, error) {
+func (s *Store) Add(ctx context.Context, traceID string, newUser *models.NewUser, now time.Time) (models.User, error) {
+	nullUsr := models.User{}
+
 	if usrs, err := s.GetUsersByEmail(ctx, traceID, newUser.Email, true); err == nil && len(usrs) > 0 {
 		for _, usr := range usrs {
 			if usr.Email == newUser.Email {
@@ -52,7 +55,7 @@ func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now t
 			}
 		}
 	} else if err != nil && !errors.Is(err, ErrNotFound) {
-		return User{}, fmt.Errorf("%s - failed to check email in db - %w", traceID, err)
+		return nullUsr, fmt.Errorf("%s - failed to check email in db - %w", traceID, err)
 	}
 
 	if usrs, err := s.GetUsersByUsername(ctx, traceID, newUser.UserName, true); err == nil && len(usrs) > 0 {
@@ -63,29 +66,29 @@ func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now t
 			}
 		}
 	} else if err != nil && !errors.Is(err, ErrNotFound) {
-		return User{}, fmt.Errorf("%s - failed to check username in db - %w", traceID, err)
+		return nullUsr, fmt.Errorf("%s - failed to check username in db - %w", traceID, err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(newUser.Pass), bcrypt.DefaultCost)
 	if err != nil {
-		return User{}, fmt.Errorf("%s : error hashing pass - %v", traceID, err)
+		return nullUsr, fmt.Errorf("%s : error hashing pass - %v", traceID, err)
 	}
 
 	rs := role.NewStore(s.log, s.dgo)
 	gotRole, err := rs.GetRoleByName(ctx, traceID, newUser.Role)
 	if err != nil {
 		if errors.Is(err, role.ErrNotFound) {
-			return User{}, fmt.Errorf("%s : role %s not found %w", traceID, newUser.Role, err)
+			return nullUsr, fmt.Errorf("%s : role %s not found %w", traceID, newUser.Role, err)
 		}
-		return User{}, fmt.Errorf("%s : error getting role %s - %w", traceID, newUser.Role, err)
+		return nullUsr, fmt.Errorf("%s : error getting role %s - %w", traceID, newUser.Role, err)
 
 	}
 
-	user := User{
+	user := models.User{
 		UserName:     newUser.UserName,
 		Name:         newUser.Name,
 		Email:        newUser.Email,
-		Role:         []role.Role{gotRole},
+		Role:         []models.Role{gotRole},
 		PassHash:     string(passHash),
 		DateCreated:  now,
 		LastSeen:     now,
@@ -93,16 +96,16 @@ func (s *Store) Add(ctx context.Context, traceID string, newUser *NewUser, now t
 	}
 	r, err := rs.GetRoleByName(ctx, traceID, newUser.Role)
 	if err != nil {
-		return User{}, fmt.Errorf("%s : role not found %v", traceID, err)
+		return nullUsr, fmt.Errorf("%s : role not found %v", traceID, err)
 	}
 
-	user.Role = []role.Role{r}
+	user.Role = []models.Role{r}
 
 	return s.add(ctx, traceID, user)
 }
 
 // GetUserByName return user found by provided name
-func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string, exact bool) ([]User, error) {
+func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string, exact bool) ([]models.User, error) {
 	vars := make(map[string]string)
 	vars["$name"] = name
 
@@ -112,16 +115,16 @@ func (s *Store) GetUsersByName(ctx context.Context, traceID string, name string,
 		query = QBYNAMEFUZZY
 	}
 
-	usrs, err := s.query(ctx, traceID, query, vars)
+	usrs, err := s.queryUser(ctx, traceID, query, vars)
 	if err != nil {
-		return []User{}, err
+		return []models.User{}, err
 	}
 
 	return usrs, nil
 }
 
 // GetUserByUsername return user found by provided username
-func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username string, exact bool) ([]User, error) {
+func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username string, exact bool) ([]models.User, error) {
 	vars := make(map[string]string)
 	vars["$user_name"] = username
 
@@ -131,16 +134,16 @@ func (s *Store) GetUsersByUsername(ctx context.Context, traceID string, username
 		query = QBYUNAMEFUZZY
 	}
 
-	usrs, err := s.query(ctx, traceID, query, vars)
+	usrs, err := s.queryUser(ctx, traceID, query, vars)
 	if err != nil {
-		return []User{}, err
+		return []models.User{}, err
 	}
 
 	return usrs, nil
 }
 
 // GetUserByEmail returns user found by provided email
-func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email string, exact bool) ([]User, error) {
+func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email string, exact bool) ([]models.User, error) {
 	vars := make(map[string]string)
 	vars["$email"] = email
 
@@ -150,67 +153,77 @@ func (s *Store) GetUsersByEmail(ctx context.Context, traceID string, email strin
 		query = QBYEMAILFUZZY
 	}
 
-	usrs, err := s.query(ctx, traceID, query, vars)
+	usrs, err := s.queryUser(ctx, traceID, query, vars)
 	for _, usr := range usrs {
 		fmt.Println(usr.Name)
 	}
 	if err != nil {
-		return []User{}, err
+		return []models.User{}, err
 	}
 
 	return usrs, nil
 }
 
 // GetUserByUID return user found by proided uid
-func (s *Store) GetUserByUID(ctx context.Context, traceID string, uid string) (User, error) {
+func (s *Store) GetUserByUID(ctx context.Context, traceID string, uid string) (models.User, error) {
 	vars := make(map[string]string)
 	vars["$uid"] = uid
 	query = QBYUID
 
-	usr, err := s.query(ctx, traceID, query, vars)
+	usr, err := s.queryUser(ctx, traceID, query, vars)
 	if err == nil && len(usr) < 1 {
-		return User{}, ErrNotFound
+		return models.User{}, ErrNotFound
 	} else if err != nil {
-		return User{}, err
+		return models.User{}, err
 	}
 
 	return usr[0], nil
 }
 
 // GetUserByRole return all users for a proided role
-func (s *Store) GetUsersByRole(ctx context.Context, traceID string, role string) ([]User, error) {
+func (s *Store) GetUsersByRole(ctx context.Context, traceID string, role string) ([]models.User, error) {
 	vars := make(map[string]string)
 	vars["$role"] = role
 	query = QBYROLE
 
-	usrs, err := s.query(ctx, traceID, query, vars)
-	if err == nil && len(usrs) < 1 {
-		return []User{}, ErrNotFound
+	roles, err := s.queryUserWithRole(ctx, traceID, query, vars)
+	if err == nil && len(roles) < 1 {
+		return []models.User{}, ErrNotFound
 	} else if err != nil {
-		return []User{}, err
+		return []models.User{}, err
+	}
+
+	fmt.Println(roles)
+
+	var usrs []models.User
+	for _, role := range roles {
+		for _, usr := range role.ReverseEdge {
+			fmt.Println(usr.Name)
+			usrs = append(usrs, usr)
+		}
 	}
 
 	return usrs, nil
 }
 
 // GetAllUsers returns all users including admins
-func (s *Store) GetAllUsers(ctx context.Context, traceID string) ([]User, error) {
+func (s *Store) GetAllUsers(ctx context.Context, traceID string) ([]models.User, error) {
 	vars := make(map[string]string)
 	vars["$role"] = "admin|user"
 	query = QBYROLE
 
-	usrs, err := s.query(ctx, traceID, query, nil)
+	usrs, err := s.queryUser(ctx, traceID, query, vars)
 	if err == nil && len(usrs) < 1 {
-		return []User{}, ErrNotFound
+		return []models.User{}, ErrNotFound
 	} else if err != nil {
-		return []User{}, err
+		return []models.User{}, err
 	}
 
 	return usrs, nil
 }
 
 // UpdateUser updates a user in the store
-func (s *Store) Update(ctx context.Context, traceID string, usr User) error {
+func (s *Store) Update(ctx context.Context, traceID string, usr models.User) error {
 	if usr.UID == "" {
 		return fmt.Errorf("%s : missing UID", traceID)
 	}
@@ -223,7 +236,7 @@ func (s *Store) Update(ctx context.Context, traceID string, usr User) error {
 }
 
 // DeleteUser deletes a user from the store
-func (s *Store) Delete(ctx context.Context, traceID string, usr User) error {
+func (s *Store) Delete(ctx context.Context, traceID string, usr models.User) error {
 	if usr.UID == "" {
 		return fmt.Errorf("%s : missing UID", traceID)
 	}
@@ -238,10 +251,10 @@ func (s *Store) Delete(ctx context.Context, traceID string, usr User) error {
 // ------ //
 
 // add uses the client to add a user
-func (s *Store) add(ctx context.Context, traceID string, usr User) (User, error) {
+func (s *Store) add(ctx context.Context, traceID string, usr models.User) (models.User, error) {
 	jsonUser, err := json.Marshal(usr)
 	if err != nil {
-		return User{}, fmt.Errorf("unable to marshal user to json - %v", err)
+		return models.User{}, fmt.Errorf("unable to marshal user to json - %v", err)
 	}
 
 	mu := &api.Mutation{
@@ -253,11 +266,11 @@ func (s *Store) add(ctx context.Context, traceID string, usr User) (User, error)
 
 	resp, err := s.dgo.NewTxn().Mutate(ctx, mu)
 	if err != nil {
-		return User{}, fmt.Errorf("unable to add user to db - %v", err)
+		return models.User{}, fmt.Errorf("unable to add user to db - %v", err)
 	}
 
 	if len(resp.Uids) == 0 {
-		return User{}, fmt.Errorf("user id not returned - %v", resp.Json)
+		return models.User{}, fmt.Errorf("user id not returned - %v", resp.Json)
 	}
 
 	s.log.Printf("%s : %s : %s", traceID, "user added", usr.UID)
@@ -266,26 +279,54 @@ func (s *Store) add(ctx context.Context, traceID string, usr User) (User, error)
 	return usr, nil
 }
 
-func (s *Store) query(ctx context.Context, traceID, q string, vars map[string]string) ([]User, error) {
+func (s *Store) queryUserWithRole(ctx context.Context, traceID, q string, vars map[string]string) ([]models.Role, error) {
 	s.log.Printf("%s :request to query user", traceID)
 	resp, err := s.dgo.NewTxn().QueryWithVars(ctx, q, vars)
 	if err != nil {
-		return []User{}, fmt.Errorf("dgo tx failed - QueryWithVars - %v", err)
+		return []models.Role{}, fmt.Errorf("dgo tx failed - QueryWithVars - %v", err)
 	}
 
-	type Result struct {
-		Users []User `json:"query"`
+	fmt.Println(string(resp.Json))
+
+	type Response struct {
+		Roles []models.Role `json:"query"`
 	}
 
-	var r Result
+	var r Response
 	err = json.Unmarshal(resp.Json, &r)
 	if err != nil {
-		return []User{}, fmt.Errorf("error while unmarshaling query result - %v", err)
+		return []models.Role{}, fmt.Errorf("error while unmarshaling query result - %v", err)
+	}
+
+	fmt.Println(r)
+
+	if len(r.Roles) < 1 {
+		return []models.Role{}, ErrNotFound
+	}
+
+	return r.Roles, nil
+}
+
+func (s *Store) queryUser(ctx context.Context, traceID, q string, vars map[string]string) ([]models.User, error) {
+	s.log.Printf("%s :request to query user", traceID)
+	resp, err := s.dgo.NewTxn().QueryWithVars(ctx, q, vars)
+	if err != nil {
+		return []models.User{}, fmt.Errorf("dgo tx failed - QueryWithVars - %v", err)
+	}
+
+	type Response struct {
+		Users []models.User `json:"query"`
+	}
+
+	var r Response
+	err = json.Unmarshal(resp.Json, &r)
+	if err != nil {
+		return []models.User{}, fmt.Errorf("error while unmarshaling query result - %v", err)
 	}
 
 	if len(r.Users) < 1 {
 		fmt.Println(len(r.Users))
-		return []User{}, ErrNotFound
+		return []models.User{}, ErrNotFound
 	}
 
 	s.log.Printf("%s: returned %d users", traceID, len(r.Users))
@@ -293,7 +334,7 @@ func (s *Store) query(ctx context.Context, traceID, q string, vars map[string]st
 	return r.Users, nil
 }
 
-func (s *Store) update(ctx context.Context, traceID string, usr User) error {
+func (s *Store) update(ctx context.Context, traceID string, usr models.User) error {
 	mutation := &api.Mutation{
 		CommitNow: true,
 	}

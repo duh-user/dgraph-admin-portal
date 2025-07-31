@@ -218,6 +218,7 @@ func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
 
 	fmt.Println(len(usrs), " users found:")
 	for _, usr := range usrs {
+		fmt.Println(usr)
 		fmt.Printf("\n-----\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
 	}
 
