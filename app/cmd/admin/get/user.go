@@ -20,6 +20,7 @@ var userCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
 
+		all, err := cmd.Flags().GetBool("all")
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
 			return fmt.Errorf("unable to get name flag - %v", err)
@@ -46,25 +47,29 @@ var userCmd = &cobra.Command{
 		}
 
 		switch {
+		case all:
+			if err := getAllUsers(log, cfg); err != nil {
+				return fmt.Errorf("unable to get all users - %v", err)
+			}
 		case email != "":
 			if err := getUserByEmail(log, cfg, email); err != nil {
-				log.Fatalf("unable get user %s - %v", email, err)
+				return fmt.Errorf("unable get user %s - %v", email, err)
 			}
 		case username != "":
 			if err := getUsersByUsername(log, cfg, username); err != nil {
-				log.Fatalf("unable get user %s - %v", username, err)
+				return fmt.Errorf("unable get user %s - %v", username, err)
 			}
 		case name != "":
 			if err := getUserByName(log, cfg, name); err != nil {
-				log.Fatalf("unable to get user %s - %w", name, err)
+				return fmt.Errorf("unable to get user %s - %w", name, err)
 			}
 		case role != "":
 			if err := getUserByRole(log, cfg, role); err != nil {
-				log.Fatalf("unable to get users with role %s - %w", role, err)
+				return fmt.Errorf("unable to get users with role %s - %w", role, err)
 			}
 		case uid != "":
 			if err := getUserByUID(log, cfg, uid); err != nil {
-				log.Fatalf("unable to get user with uid %s - %w", uid, err)
+				return fmt.Errorf("unable to get user with uid %s - %w", uid, err)
 			}
 		default:
 			fmt.Println("error - please use flag --username, --uid, --name, --email or --role")
@@ -116,10 +121,11 @@ func getUserByEmail(log *log.Logger, cfg *config.Config, email string) error {
 
 	for _, usr := range usrs {
 		log.Println("user found: - ", usr.UID)
-		fmt.Printf("UID: %s\nUsername: %s\nName: %s\n", usr.UID, usr.UserName, usr.Name)
+		fmt.Printf("UID: %s\nUsername: %s\nName: %s\nEmail: %s\n", usr.UID, usr.UserName, usr.Name, usr.Email)
 		for _, role := range usr.Role {
 			fmt.Printf("Role: %s\n", role.Name)
 		}
+		fmt.Println("\n-----\n")
 	}
 
 	return nil
@@ -206,11 +212,13 @@ func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
 	usrs, err := s.GetUsersByRole(ctx, traceID, role)
 	if err != nil {
 		return err
+	} else if len(usrs) == 0 {
+		return fmt.Errorf("no users found for role %s\n", role)
 	}
 
 	fmt.Println(len(usrs), " users found:")
 	for _, usr := range usrs {
-		fmt.Printf("UID: %s\nUsername: %s\nName: %s\nRole: %s\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
+		fmt.Printf("\n-----\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
 	}
 
 	return nil

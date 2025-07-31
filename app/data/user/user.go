@@ -195,7 +195,9 @@ func (s *Store) GetUsersByRole(ctx context.Context, traceID string, role string)
 
 // GetAllUsers returns all users including admins
 func (s *Store) GetAllUsers(ctx context.Context, traceID string) ([]User, error) {
-	query = QALLUSERS
+	vars := make(map[string]string)
+	vars["$role"] = "admin|user"
+	query = QBYROLE
 
 	usrs, err := s.query(ctx, traceID, query, nil)
 	if err == nil && len(usrs) < 1 {

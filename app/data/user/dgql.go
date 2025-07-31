@@ -67,15 +67,10 @@ const (
 
 	QBYROLE = `
 		query query($role: string) {
-			query(func: eq(role, $role)) {
-				` + QFIELDSUSER + `
-			}
-		}`
-
-	QALLUSERS = `
-		query query($role: string) {
-			query(func: eq(role, $role)) {
-				` + QFIELDSUSER + `
+			query(func: eq(role_name, $role)) {
+				~role {
+					` + QFIELDSUSER + `
+				}
 			}
 		}`
 )
