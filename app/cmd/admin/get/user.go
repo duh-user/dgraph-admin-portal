@@ -213,7 +213,7 @@ func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
 	if err != nil {
 		return err
 	} else if len(usrs) == 0 {
-		return fmt.Errorf("no users found for role %s\n", role)
+		return fmt.Errorf("no users found for role %s", role)
 	}
 
 	fmt.Println(len(usrs), " users found:")
@@ -243,7 +243,7 @@ func getAllUsers(log *log.Logger, cfg *config.Config) error {
 
 	fmt.Println(len(usrs), "users found:")
 	for _, usr := range usrs {
-		fmt.Printf("UID: %s\nUsername: %s\nName: %s\nRole: %s\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
+		fmt.Printf("\n-----\n\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
 	}
 
 	return nil

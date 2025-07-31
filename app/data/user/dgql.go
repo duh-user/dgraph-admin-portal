@@ -75,4 +75,19 @@ const (
 				}
 			}
 		}`
+	QALLUSERS = `
+	query query() {
+		query(func: has(role)) {
+			uid
+			dgraph.type
+			name
+			user_name
+			email
+			role {
+				uid
+				role_name
+			}
+		}
+}
+	`
 )
