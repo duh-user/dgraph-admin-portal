@@ -6,10 +6,10 @@ import (
 	"dgraph-client/data"
 	"dgraph-client/data/schema"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -19,10 +19,11 @@ var schemaCmd = &cobra.Command{
 	Short: "update the schema",
 	Long:  `update schema from hardcoded....tbd from backup, file, etc`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
+		log := log.New(os.Stdout)
+		log.SetPrefix("ADMINCMD")
 
 		if err := updateSchema(log, cfg); err != nil {
-			log.Println("error during schema creation - ", err)
+			log.Errorf("error during schema creation - ", err)
 		}
 	},
 }
@@ -58,7 +59,7 @@ func updateSchema(log *log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("error creating schema... - %v", err)
 	}
 
-	log.Println("schema updated successfully")
+	log.Info("schema updated successfully")
 
 	if err := schema.InitRoles(ctx, log, traceID); err != nil {
 		return fmt.Errorf("error creating roles... - %v", err)

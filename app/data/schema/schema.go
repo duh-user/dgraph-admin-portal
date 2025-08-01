@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"log"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/dgraph-io/dgo/v2"
 	"github.com/dgraph-io/dgo/v2/protos/api"
 )

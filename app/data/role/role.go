@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/dgraph-io/dgo/v2"
 	"github.com/dgraph-io/dgo/v2/protos/api"
 )
@@ -38,8 +38,8 @@ func NewStore(log *log.Logger, dgo *dgo.Dgraph) *Store {
 // Add will add a new role to the db if the user doesn't already exist
 // if the role existss the found user is returned
 // if added the role with uid is returned
-func (s *Store) Add(ctx context.Context, traceID string, role string, now time.Time) (models.Role, error) {
-	if r, err := s.GetRoleByName(ctx, traceID, role); err == nil {
+func (s *Store) Add(ctx context.Context, raceID string, role string, now time.Time) (models.Role, error) {
+	if r, err := s.GetRoleByName(ctx, role); err == nil {
 		return r, ErrExists
 	}
 
@@ -50,10 +50,10 @@ func (s *Store) Add(ctx context.Context, traceID string, role string, now time.T
 		LastModified: now,
 	}
 
-	return s.add(ctx, traceID, r)
+	return s.add(ctx, r)
 }
 
-func (s *Store) GetRoleByName(ctx context.Context, traceID string, name string) (models.Role, error) {
+func (s *Store) GetRoleByName(ctx context.Context, name string) (models.Role, error) {
 	vars := make(map[string]string)
 	vars["$role_name"] = name
 	// all queries need to start with the name "query" to work with our query handler
@@ -69,7 +69,7 @@ func (s *Store) GetRoleByName(ctx context.Context, traceID string, name string) 
 			}	
 		`
 
-	role, err := s.query(ctx, traceID, q, vars)
+	role, err := s.query(ctx, q, vars)
 	if err != nil {
 		return models.Role{}, err
 	}
@@ -79,7 +79,7 @@ func (s *Store) GetRoleByName(ctx context.Context, traceID string, name string) 
 
 // --- Internal Functions
 
-func (s *Store) add(ctx context.Context, traceID string, role models.Role) (models.Role, error) {
+func (s *Store) add(ctx context.Context, role models.Role) (models.Role, error) {
 	jsonRole, err := json.Marshal(role)
 	if err != nil {
 		return models.Role{}, fmt.Errorf("unable to marshal role to json - %v", err)
@@ -90,7 +90,7 @@ func (s *Store) add(ctx context.Context, traceID string, role models.Role) (mode
 		CommitNow: true,
 	}
 
-	s.log.Printf("%s : %s", traceID, "request to add role")
+	s.log.Printf("request to add role - %s", role)
 
 	resp, err := s.dgo.NewTxn().Mutate(ctx, mu)
 	if err != nil {
@@ -101,14 +101,14 @@ func (s *Store) add(ctx context.Context, traceID string, role models.Role) (mode
 		return models.Role{}, fmt.Errorf("role uid not returned - %v", resp.Json)
 	}
 
-	s.log.Printf("%s : %s : %s", traceID, "role added", role.UID)
+	s.log.Printf("role add successfully - %s", role.UID)
 
 	role.UID = resp.Uids["0"]
 	return role, nil
 }
 
-func (s *Store) query(ctx context.Context, traceID, q string, vars map[string]string) ([]models.Role, error) {
-	s.log.Printf("%s : %s", traceID, "request to query role")
+func (s *Store) query(ctx context.Context, q string, vars map[string]string) ([]models.Role, error) {
+	s.log.Printf("request to query role - %s", q)
 	resp, err := s.dgo.NewTxn().QueryWithVars(ctx, q, vars)
 	if err != nil {
 		return []models.Role{}, fmt.Errorf("dgo tx failed - QueryWithVars - %v", err)
@@ -119,7 +119,7 @@ func (s *Store) query(ctx context.Context, traceID, q string, vars map[string]st
 	}
 
 	var r Result
-	//fmt.Println(string(resp.Json))
+	// fmt.Println(string(resp.Json))
 	err = json.Unmarshal(resp.Json, &r)
 	if err != nil {
 		return []models.Role{}, fmt.Errorf("error while unmarshaling query result - %v", err)
@@ -130,7 +130,7 @@ func (s *Store) query(ctx context.Context, traceID, q string, vars map[string]st
 		return []models.Role{}, ErrNotFound
 	}
 
-	s.log.Printf("%s: %d %s", traceID, len(r.Roles), "roles returned")
+	s.log.Printf("number of roles found - %d", len(r.Roles))
 
 	return r.Roles, nil
 }
@@ -147,7 +147,7 @@ func (s *Store) update(ctx context.Context, traceID string, usr models.Role) err
 		return fmt.Errorf("unable to marshal role to json - %v", err)
 	}
 
-	s.log.Printf("%s : %s", traceID, "request to update role")
+	s.log.Printf("%s", "request to update role")
 	mutation.SetJson = jsonRole
 	resp, err := s.dgo.NewTxn().Mutate(ctx, mutation)
 	if err != nil {

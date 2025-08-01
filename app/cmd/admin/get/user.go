@@ -7,11 +7,11 @@ import (
 	"dgraph-client/data/models"
 	"dgraph-client/data/user"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -21,9 +21,8 @@ var userCmd = &cobra.Command{
 	Short: "get a user from the db",
 	Long:  `get a user from the db by name, email, username, or role`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
-
 		all, err := cmd.Flags().GetBool("all")
+
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
 			return fmt.Errorf("unable to get name flag - %v", err)
@@ -49,34 +48,44 @@ var userCmd = &cobra.Command{
 			return fmt.Errorf("unable to get uid flag - %v", err)
 		}
 
+		log := log.New(os.Stdout)
+		traceID := uuid.New().String()
+		log.SetPrefix(traceID)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		dgc, cncl := data.NewDGClient(cfg)
+		defer cncl()
+
+		s := user.NewStore(log, dgc.Client)
+
 		switch {
 		case all:
-			if err := getAllUsers(log, cfg); err != nil {
+			if err := getAllUsers(log, ctx, s); err != nil {
 				return fmt.Errorf("unable to get all users - %v", err)
 			}
 		case email != "":
-			if err := getUserByEmail(log, cfg, email); err != nil {
+			if err := getUserByEmail(log, cfg, traceID, email); err != nil {
 				return fmt.Errorf("unable get user %s - %v", email, err)
 			}
 		case username != "":
-			if err := getUsersByUsername(log, cfg, username); err != nil {
+			if err := getUsersByUsername(log, cfg, traceID, username); err != nil {
 				return fmt.Errorf("unable get user %s - %v", username, err)
 			}
 		case name != "":
-			if err := getUserByName(log, cfg, name); err != nil {
+			if err := getUserByName(log, cfg, traceID, name); err != nil {
 				return fmt.Errorf("unable to get user %s - %w", name, err)
 			}
 		case role != "":
-			if err := getUserByRole(log, cfg, role); err != nil {
+			if err := getUserByRole(log, cfg, traceID, role); err != nil {
 				return fmt.Errorf("unable to get users with role %s - %w", role, err)
 			}
 		case uid != "":
-			if err := getUserByUID(log, cfg, uid); err != nil {
+			if err := getUserByUID(log, cfg, traceID, uid); err != nil {
 				return fmt.Errorf("unable to get user with uid %s - %w", uid, err)
 			}
 		default:
-			fmt.Println("error - please use flag --username, --uid, --name, --email or --role")
-			cmd.Help()
 			return fmt.Errorf("no search criteria provided")
 		}
 		return nil
@@ -92,49 +101,21 @@ func init() {
 	userCmd.Flags().String("uid", "", "get user by uid")
 }
 
-/*
-func query(log *log.Logger, cfg *config.Config) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
-	traceID := uuid.New().String()
-}
-*/
-
-func getUserByEmail(log *log.Logger, cfg *config.Config, email string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
-	traceID := uuid.New().String()
-	log.Printf("looking for users matching %s", email)
-	usrs, err := s.GetUsersByEmail(ctx, traceID, email, false)
+func getAllUsers(log *log.Logger, ctx context.Context, s *user.Store) error {
+	usrs, err := s.GetAllUsers(ctx)
 	if err != nil {
 		return err
 	}
 
-	for _, usr := range usrs {
-		log.Println("user found: - ", usr.UID)
-		fmt.Printf("UID: %s\nUsername: %s\nName: %s\nEmail: %s\n", usr.UID, usr.UserName, usr.Name, usr.Email)
-		for _, role := range usr.Role {
-			fmt.Printf("Role: %s\n", role.Name)
-		}
-		fmt.Println("\n-----\n")
+	if err := displayUsers(usrs); err != nil {
+		log.Errorf("failed to display users - $v", err)
+		return err
 	}
 
 	return nil
 }
 
-func getUsersByUsername(log *log.Logger, cfg *config.Config, uname string) error {
+func getUserByEmail(log *log.Logger, cfg *config.Config, traceID string, email string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -143,22 +124,20 @@ func getUsersByUsername(log *log.Logger, cfg *config.Config, uname string) error
 
 	s := user.NewStore(log, dgc.Client)
 
-	traceID := uuid.New().String()
-	usrs, err := s.GetUsersByUsername(ctx, traceID, uname, false)
+	log.Info("looking for users matching %s", email)
+	usrs, err := s.GetUsersByEmail(ctx, email, false)
 	if err != nil {
 		return err
 	}
 
-	displayUser(usrs)
-
-	for _, usr := range usrs {
-		log.Println("user found - ", usr.UID)
+	if err := displayUsers(usrs); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func getUserByName(log *log.Logger, cfg *config.Config, name string) error {
+func getUsersByUsername(log *log.Logger, cfg *config.Config, traceID string, uname string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -167,25 +146,19 @@ func getUserByName(log *log.Logger, cfg *config.Config, name string) error {
 
 	s := user.NewStore(log, dgc.Client)
 
-	traceID := uuid.New().String()
-	usrs, err := s.GetUsersByName(ctx, traceID, name, false)
+	usrs, err := s.GetUsersByUsername(ctx, uname, false)
 	if err != nil {
 		return err
 	}
 
-	if err := displayUser(usrs); err != nil {
+	if err := displayUsers(usrs); err != nil {
 		return err
-	}
-
-	fmt.Println(len(usrs), "users found:")
-	for _, usr := range usrs {
-		fmt.Printf("UID: %s\nUsername: %s\nName: %s\nRole: %s\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
 	}
 
 	return nil
 }
 
-func getUserByUID(log *log.Logger, cfg *config.Config, uid string) error {
+func getUserByName(log *log.Logger, cfg *config.Config, traceID string, name string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -194,20 +167,19 @@ func getUserByUID(log *log.Logger, cfg *config.Config, uid string) error {
 
 	s := user.NewStore(log, dgc.Client)
 
-	traceID := uuid.New().String()
-
-	usr, err := s.GetUserByUID(ctx, traceID, uid)
+	usrs, err := s.GetUsersByName(ctx, name, false)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Found user:")
-	fmt.Printf("UID: %s\nUsername: %s\nName: %s\nRole: %s\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
+	if err := displayUsers(usrs); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
+func getUserByUID(log *log.Logger, cfg *config.Config, traceID string, uid string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -216,9 +188,29 @@ func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
 
 	s := user.NewStore(log, dgc.Client)
 
-	traceID := uuid.New().String()
+	usr, err := s.GetUserByUID(ctx, uid)
+	if err != nil {
+		return err
+	}
 
-	usrs, err := s.GetUsersByRole(ctx, traceID, role)
+	if err := displayUsers([]models.User{usr}); err != nil {
+		log.Errorf("unable to display users - %v", err)
+		return nil
+	}
+
+	return nil
+}
+
+func getUserByRole(log *log.Logger, cfg *config.Config, traceID, role string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dgc, cncl := data.NewDGClient(cfg)
+	defer cncl()
+
+	s := user.NewStore(log, dgc.Client)
+
+	usrs, err := s.GetUsersByRole(ctx, role)
 	if err != nil {
 		return err
 	} else if len(usrs) == 0 {
@@ -234,31 +226,7 @@ func getUserByRole(log *log.Logger, cfg *config.Config, role string) error {
 	return nil
 }
 
-func getAllUsers(log *log.Logger, cfg *config.Config) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
-	traceID := uuid.New().String()
-
-	usrs, err := s.GetAllUsers(ctx, traceID)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(len(usrs), "users found:")
-	for _, usr := range usrs {
-		fmt.Printf("\n-----\n\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
-	}
-
-	return nil
-}
-
-func displayUser(usrs []models.User) error {
+func displayUsers(usrs []models.User) error {
 	if len(usrs) < 1 {
 		return fmt.Errorf("no users provided to display")
 	}
@@ -266,7 +234,7 @@ func displayUser(usrs []models.User) error {
 	rows := [][]string{}
 
 	for _, usr := range usrs {
-		rows = append(rows, []string{usr.UID, usr.UserName, usr.Email, usr.LastSeen.String(), usr.LastModified.String()})
+		rows = append(rows, []string{usr.UID, usr.Name, usr.UserName, usr.Email, usr.LastSeen.String(), usr.LastModified.String()})
 	}
 
 	var (
@@ -293,7 +261,7 @@ func displayUser(usrs []models.User) error {
 				return oddRowStyle
 			}
 		}).
-		Headers("UID", "username", "email", "last_seen", "last_modified").
+		Headers("UID", "name", "username", "email", "last_seen", "last_modified").
 		Rows(rows...)
 
 	fmt.Println(t)
