@@ -10,7 +10,7 @@ var cfg *config.Config
 
 var Cmd = &cobra.Command{
 	Use:   "update",
-	Short: "update shit",
+	Short: "update data in the database",
 	Long:  `update the schema, db, etc....from hardcoded now. TODO from backup/file/etc`,
 	Run: func(cmd *cobra.Command, args []string) {
 	},

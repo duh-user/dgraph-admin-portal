@@ -2,9 +2,9 @@ package adminCmd
 
 import (
 	addCmd "dgraph-client/cmd/admin/add"
-	updateCmd "dgraph-client/cmd/admin/delete"
+	deleteCmd "dgraph-client/cmd/admin/delete"
 	getCmd "dgraph-client/cmd/admin/get"
-	deleteCmd "dgraph-client/cmd/admin/update"
+	updateCmd "dgraph-client/cmd/admin/update"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -21,8 +21,8 @@ var Cmd = &cobra.Command{
 
 func init() {
 	Cmd.AddCommand(addCmd.Cmd)
-	Cmd.AddCommand(updateCmd.Cmd)
 	Cmd.AddCommand(deleteCmd.Cmd)
+	Cmd.AddCommand(updateCmd.Cmd)
 	Cmd.AddCommand(getCmd.Cmd)
 	Cmd.PersistentFlags().String("dg-addr", "localhost:9080",
 		"set dgraph host url. default: localhost:9080")

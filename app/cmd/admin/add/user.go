@@ -67,34 +67,32 @@ func addUser(log *log.Logger, ctx context.Context, s *user.Store, newUsr *models
 }
 
 func initFlags(cmd *cobra.Command) (*models.NewUser, error) {
-	usr := models.NewUser{}
-
 	name, err := cmd.Flags().GetString("name")
 	if err != nil {
-		return &usr, err
+		return nil, err
 	}
 
 	username, err := cmd.Flags().GetString("username")
 	if err != nil {
-		return &usr, err
+		return nil, err
 	}
 
 	email, err := cmd.Flags().GetString("email")
 	if err != nil {
-		return &usr, err
+		return nil, err
 	}
 
 	pass, err := cmd.Flags().GetString("password")
 	if err != nil {
-		return &usr, err
+		return nil, err
 	}
 
 	role, err := cmd.Flags().GetString("role")
 	if err != nil {
-		return &usr, err
+		return nil, err
 	}
 
-	usr = models.NewUser{
+	usr := models.NewUser{
 		Name:     name,
 		UserName: username,
 		Email:    email,

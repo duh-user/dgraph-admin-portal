@@ -2,7 +2,6 @@ package getCmd
 
 import (
 	"context"
-	"dgraph-client/config"
 	"dgraph-client/data"
 	"dgraph-client/data/models"
 	"dgraph-client/data/user"
@@ -16,6 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	USERSEARCH       = "looking for user"
+	FAILEDUSERSEARCH = "failed to get user"
+)
+
 var userCmd = &cobra.Command{
 	Use:   "user",
 	Short: "get a user from the db",
@@ -25,27 +29,27 @@ var userCmd = &cobra.Command{
 
 		name, err := cmd.Flags().GetString("name")
 		if err != nil {
-			return fmt.Errorf("unable to get name flag - %v", err)
+			return fmt.Errorf("name flag error", "name", name, "error", err)
 		}
 
 		username, err := cmd.Flags().GetString("username")
 		if err != nil {
-			return fmt.Errorf("unable to get username flag - %v", err)
+			return fmt.Errorf("username flag error", "username", username, "error", err)
 		}
 
 		email, err := cmd.Flags().GetString("email")
 		if err != nil {
-			return fmt.Errorf("unable to get email flag - %v", err)
+			return fmt.Errorf("email flag error", "email", email, "error", err)
 		}
 
 		role, err := cmd.Flags().GetString("role")
 		if err != nil {
-			return fmt.Errorf("unable to get role flag - %v", err)
+			return fmt.Errorf("role flag error", "role", role, "error", err)
 		}
 
 		uid, err := cmd.Flags().GetString("uid")
 		if err != nil {
-			return fmt.Errorf("unable to get uid flag - %v", err)
+			return fmt.Errorf("uid flag error", "uid", uid, "error", err)
 		}
 
 		log := log.New(os.Stdout)
@@ -63,27 +67,33 @@ var userCmd = &cobra.Command{
 		switch {
 		case all:
 			if err := getAllUsers(log, ctx, s); err != nil {
-				return fmt.Errorf("unable to get all users - %v", err)
+				log.Errorf("failed getting all users", "error", err)
+				return nil
 			}
 		case email != "":
-			if err := getUserByEmail(log, cfg, traceID, email); err != nil {
-				return fmt.Errorf("unable get user %s - %v", email, err)
+			if err := getUserByEmail(log, ctx, s, email); err != nil {
+				log.Errorf(FAILEDUSERSEARCH, "eamil", email, "err", err)
+				return nil
 			}
 		case username != "":
-			if err := getUsersByUsername(log, cfg, traceID, username); err != nil {
-				return fmt.Errorf("unable get user %s - %v", username, err)
+			if err := getUsersByUsername(log, ctx, s, username); err != nil {
+				log.Errorf(FAILEDUSERSEARCH, "username", username, "err", err)
+				return nil
 			}
 		case name != "":
-			if err := getUserByName(log, cfg, traceID, name); err != nil {
-				return fmt.Errorf("unable to get user %s - %w", name, err)
+			if err := getUserByName(log, ctx, s, name); err != nil {
+				log.Errorf(FAILEDUSERSEARCH, "name", name, "err", err)
+				return nil
 			}
 		case role != "":
-			if err := getUserByRole(log, cfg, traceID, role); err != nil {
-				return fmt.Errorf("unable to get users with role %s - %w", role, err)
+			if err := getUserByRole(log, ctx, s, role); err != nil {
+				log.Errorf(FAILEDUSERSEARCH, "role", role, "error", err)
+				return nil
 			}
 		case uid != "":
-			if err := getUserByUID(log, cfg, traceID, uid); err != nil {
-				return fmt.Errorf("unable to get user with uid %s - %w", uid, err)
+			if err := getUserByUID(log, ctx, s, uid); err != nil {
+				log.Errorf(FAILEDUSERSEARCH, "uid", uid, "error", err)
+				return nil
 			}
 		default:
 			return fmt.Errorf("no search criteria provided")
@@ -102,29 +112,21 @@ func init() {
 }
 
 func getAllUsers(log *log.Logger, ctx context.Context, s *user.Store) error {
+	log.Info("getting all users")
 	usrs, err := s.GetAllUsers(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err := displayUsers(usrs); err != nil {
-		log.Errorf("failed to display users - $v", err)
 		return err
 	}
 
 	return nil
 }
 
-func getUserByEmail(log *log.Logger, cfg *config.Config, traceID string, email string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
-	log.Info("looking for users matching %s", email)
+func getUserByEmail(log *log.Logger, ctx context.Context, s *user.Store, email string) error {
+	log.Info(USERSEARCH, "email", email)
 	usrs, err := s.GetUsersByEmail(ctx, email, false)
 	if err != nil {
 		return err
@@ -137,15 +139,8 @@ func getUserByEmail(log *log.Logger, cfg *config.Config, traceID string, email s
 	return nil
 }
 
-func getUsersByUsername(log *log.Logger, cfg *config.Config, traceID string, uname string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
+func getUsersByUsername(log *log.Logger, ctx context.Context, s *user.Store, uname string) error {
+	log.Info(USERSEARCH, "username", uname)
 	usrs, err := s.GetUsersByUsername(ctx, uname, false)
 	if err != nil {
 		return err
@@ -158,15 +153,8 @@ func getUsersByUsername(log *log.Logger, cfg *config.Config, traceID string, una
 	return nil
 }
 
-func getUserByName(log *log.Logger, cfg *config.Config, traceID string, name string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
+func getUserByName(log *log.Logger, ctx context.Context, s *user.Store, name string) error {
+	log.Info(USERSEARCH, "name", name)
 	usrs, err := s.GetUsersByName(ctx, name, false)
 	if err != nil {
 		return err
@@ -179,48 +167,32 @@ func getUserByName(log *log.Logger, cfg *config.Config, traceID string, name str
 	return nil
 }
 
-func getUserByUID(log *log.Logger, cfg *config.Config, traceID string, uid string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
+func getUserByUID(log *log.Logger, ctx context.Context, s *user.Store, uid string) error {
+	log.Info(USERSEARCH, "UID", uid)
 	usr, err := s.GetUserByUID(ctx, uid)
 	if err != nil {
 		return err
 	}
 
 	if err := displayUsers([]models.User{usr}); err != nil {
-		log.Errorf("unable to display users - %v", err)
-		return nil
+		return err
 	}
 
 	return nil
 }
 
-func getUserByRole(log *log.Logger, cfg *config.Config, traceID, role string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	dgc, cncl := data.NewDGClient(cfg)
-	defer cncl()
-
-	s := user.NewStore(log, dgc.Client)
-
+func getUserByRole(log *log.Logger, ctx context.Context, s *user.Store, role string) error {
+	log.Info(USERSEARCH, "role", role)
 	usrs, err := s.GetUsersByRole(ctx, role)
 	if err != nil {
 		return err
 	} else if len(usrs) == 0 {
-		return fmt.Errorf("no users found for role %s", role)
+		log.Infof("no users found", "role", role, "num_users", len(usrs))
+		return nil
 	}
 
-	fmt.Println(len(usrs), " users found:")
-	for _, usr := range usrs {
-		fmt.Println(usr)
-		fmt.Printf("\n-----\nUID: %s\nUsername: %s\nName: %s\nRole: %s\n\n", usr.UID, usr.UserName, usr.Name, usr.Role[0].Name)
+	if err := displayUsers(usrs); err != nil {
+		return err
 	}
 
 	return nil

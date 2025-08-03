@@ -15,7 +15,7 @@ import (
 
 var everythingCmd = &cobra.Command{
 	Use:   "everything",
-	Short: "blow it all the fuck up",
+	Short: "delete the schema and all data",
 	Long:  `delete the schema and all data...start anew`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log := log.New(os.Stdout, "ADMINCMD - ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
